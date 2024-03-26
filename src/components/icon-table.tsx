@@ -1,14 +1,14 @@
 import Table, { ColumnsType } from 'antd/lib/table'
 import Message from 'antd/lib/message'
-import { IconImage } from '@components/icon-image'
 import { isArray, isNull, isString } from '@blackglory/prelude'
 import hash from 'object-hash'
 import { IIcon } from 'parse-favicon'
 import { i18n } from '@utils/i18n'
 import { getMaxSize } from '@utils/get-max-size'
-import { setClipboard } from '@utils/set-clipboard'
 import { computeIconArea } from '@utils/compute-icon-area'
 import { getUniqueIconTypes } from '@utils/get-unique-icon-types'
+import { twMerge } from 'tailwind-merge'
+import { textToBlob } from 'extra-blob'
 
 interface ISize {
   width: number
@@ -17,20 +17,16 @@ interface ISize {
 
 interface IIconTableProps {
   icons: IIcon[]
-  loading: boolean
 }
 
-export function IconTable(props: IIconTableProps) {
-  const { icons, loading } = props
+export function IconTable({ icons }: IIconTableProps) {
   const columns: ColumnsType<IIcon> = [
     {
       title: i18n('titleIcon')
     , dataIndex: 'url'
     , key: 'icon'
     , render(_, icon: IIcon) {
-        return <a onClick={() => copyIconUrl(icon)}>
-          {createIconImage(icon)}
-        </a>
+        return <Icon icon={icon} />
       }
     }
   , {
@@ -66,8 +62,10 @@ export function IconTable(props: IIconTableProps) {
 
   return (
     <Table
+      className='w-full h-full overflow-y-auto'
       rowKey={record => hash(record)}
-      loading={loading}
+      sticky={true}
+      tableLayout='auto'
       pagination={false}
       dataSource={icons}
       columns={columns}
@@ -106,19 +104,72 @@ function iconSizeToString(icon: IIcon): string {
   }
 }
 
-function createIconImage(icon: IIcon) {
+function Icon({ icon }: { icon: IIcon }) {
   if (icon.size) {
     if (isArray<ISize>(icon.size)) {
       const size = getMaxSize(icon.size)
-      return <IconImage src={icon.url} width={size.width} height={size.height} />
+      return <CopyableImage
+        src={icon.url}
+        width={size.width}
+        height={size.height}
+      />
     } else if (icon.size !== 'any') {
-      return <IconImage src={icon.url} width={icon.size.width} height={icon.size.height} />
+      return <CopyableImage
+        src={icon.url}
+        width={icon.size.width}
+        height={icon.size.height}
+      />
     }
   }
-  return <IconImage src={icon.url} />
+
+  return <CopyableImage src={icon.url} />
 }
 
-function copyIconUrl(icon: IIcon): void {
-  setClipboard(icon.url)
-  Message.success(i18n('messageIconUrlCopied'))
+function CopyableImage(props: React.ComponentPropsWithoutRef<'img'>) {
+  return <img
+    {...props}
+    className={twMerge(
+      'bg-transparent-fake max-w-[256px] max-h-[256px]'
+    , props.src && 'cursor-pointer'
+    , props.className
+    )}
+    onClick={async () => {
+      if (props.src) {
+        try {
+          await writeImageClipboard(props.src)
+        } catch {
+          await writeImageURLToClipboard(props.src)
+        }
+      }
+    }}
+  />
+
+  async function writeImageClipboard(imageUrl: string): Promise<void> {
+    const res = await fetch(imageUrl, { cache: 'force-cache' })
+    const blob = await res.blob()
+
+    const clipboardItem = new ClipboardItem({
+      'text/plain': textToBlob(imageUrl)
+    , 'text/html': textToBlob(createImgHTML(imageUrl), 'text/html')
+    , [blob.type]: blob
+    })
+    await navigator.clipboard.write([clipboardItem])
+
+    Message.success(i18n('messageImageCopied'))
+  }
+
+  async function writeImageURLToClipboard(imageUrl: string): Promise<void> {
+    const clipboardItem = new ClipboardItem({
+      'text/plain': textToBlob(imageUrl)
+    , 'text/html': textToBlob(createImgHTML(imageUrl), 'text/html')
+    })
+
+    await navigator.clipboard.write([clipboardItem])
+
+    Message.success(i18n('messageImageURLCopied'))
+  }
+
+  function createImgHTML(imageUrl: string): string {
+    return `<img src="${imageUrl}" />`
+  }
 }

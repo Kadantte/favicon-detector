@@ -1,23 +1,22 @@
+import ProgressBar from '@badrap/bar-of-progress'
 import Message from 'antd/lib/message'
 import { IconTable } from '@components/icon-table'
-import { Window } from '@components/window'
-import { useState } from 'react'
 import { useImmer } from 'use-immer'
 import hash from 'object-hash'
 import { IIcon } from 'parse-favicon'
 import { getIconsFromPage } from '@utils/get-icons-from-page'
-import { go } from '@blackglory/prelude'
-import { useMount } from 'extra-react-hooks'
+import { useMountAsync } from 'extra-react-hooks'
 
 export function Popup() {
-  const [loading, setLoading] = useState(true)
-  const [iconByHash, updateIconByHash] = useImmer<{ [index: string]: IIcon }>({})
+  const [iconByHash, updateIconByHash] = useImmer<Record<string, IIcon>>({})
   const icons: IIcon[] = Object.values(iconByHash)
 
-  useMount(() => {
-    go(async () => {
-      const observable = await getIconsFromPage()
+  useMountAsync(async () => {
+    const progress = new ProgressBar()
+    progress.start()
 
+    try {
+      const observable = await getIconsFromPage()
       observable.subscribe({
         next(icon) {
           updateIconByHash(icons => {
@@ -25,23 +24,24 @@ export function Popup() {
           })
         }
       , error(err) {
-          setLoading(false)
+          progress.finish()
           console.error(err)
-          Message.error(err.message, NaN)
+          Message.error(err.message, 0)
         }
       , complete() {
-          setLoading(false)
+          progress.finish()
         }
       })
-    })
+    } catch (e) {
+      progress.finish()
+
+      throw e
+    }
   })
 
   return (
-    <Window>
-      <IconTable
-        loading={loading}
-        icons={icons}
-      />
-    </Window>
+    <div className='w-[800px] h-[600px]'>
+      <IconTable icons={icons} />
+    </div>
   )
 }

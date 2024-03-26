@@ -10,6 +10,7 @@ module.exports = {
   }
 , output: {
     path: path.join(__dirname, 'dist')
+  , chunkFilename: 'chunk.[name].js' // 防止生成以`_`开头的文件名, 因为Chrome保留了这些文件名.
   , filename: '[name].js'
   }
 , resolve: {
@@ -34,8 +35,8 @@ module.exports = {
       , use: 'ts-loader'
       }
     , {
-        test: /\.css$/i
-      , use: ['style-loader', 'css-loader']
+        test: /\.css$/i,
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
       }
     ]
   }
